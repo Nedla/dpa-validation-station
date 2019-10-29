@@ -20,3 +20,6 @@ Create a fully equipped and deployable workstation complete with a software suit
 
 ### Project Status 10-29-2019
 - Project created
+
+### TODO
+- Proof of concept
