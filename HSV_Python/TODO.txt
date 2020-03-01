@@ -1,0 +1,13 @@
+TODO
+    8 bits of key xor 8 bits of plaintext
+    using exhaustive combinations of plaintext 8 bits long,
+    encrypt it on the board, 
+    capture the power trace / time
+
+    then, ASSUME the key, 8 bits (exhaustive)
+    using the same plaintext, generate a model that
+    
+    somehow? build a model representing the power consumed during each round,
+    compare it to the traces captured
+
+    apply welches t-test to determine if the sets are DISTINGUISHABLE
