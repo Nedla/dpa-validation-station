@@ -1,6 +1,11 @@
 import serial
 import serial.tools.list_ports
 from PyQt5.QtWidgets import *
+import pyvisa
+import csv
+import random
+import time
+from datetime import datetime
 
 ARDUINO_BAUDRATE = 9600
 
@@ -30,7 +35,7 @@ def guiSetup():
     comInputRefresh.setLayout(comRefreshLayout)
 
     encButton = QPushButton("Encrypt")
-    encButton.clicked.connect(lambda: encryptFunc(encButton, comInput.currentText(), keyInput.text(), pTextInput.text()))
+    encButton.setEnabled(False)
     resetButton = QPushButton("Reset")
     resetButton.clicked.connect(lambda: resetFunc(app))
     formLayoutLeft = QFormLayout()
@@ -45,6 +50,7 @@ def guiSetup():
 
     traceLabel = QLabel("# of Traces")
     traceInput = QLineEdit()
+    traceInput.setText("1")
     numEncrLabel = QLabel("# of Encrypts")
     numEncrInput = QLineEdit()
     settingsLabel = QLabel("Settings File")
@@ -62,15 +68,14 @@ def guiSetup():
     settingsInputRefresh.setLayout(settingsRefreshLayout)
 
 
-    countLabel = QLabel("Traces Collected:")
-    traceCount = QLineEdit()
-    traceCount.setReadOnly(True)
-    traceCount.setText("0")
+    setupLabel = QLabel("Scope Setup:")
+    setupButton = QPushButton("SETUP")
+    setupButton.clicked.connect(lambda: setupScope(encButton, setupButton, app))
     formLayoutRight = QFormLayout()
     formLayoutRight.addRow(traceLabel, traceInput)
     formLayoutRight.addRow(numEncrLabel, numEncrInput)
     formLayoutRight.addRow(settingsLabel, settingsInputRefresh)
-    formLayoutRight.addRow(countLabel, traceCount)
+    formLayoutRight.addRow(setupLabel, setupButton)
     formLayoutRight.setContentsMargins(0, 0, 0, 0)
 
     rightWidg = QWidget()
@@ -93,7 +98,8 @@ def guiSetup():
     saveWidget = QWidget()
     saveWidget.setLayout(saveLayout)
     progressBar = QProgressBar()
-
+    encButton.clicked.connect(lambda: encryptController(encButton, comInput.currentText(), keyInput.text().split(),
+                                                        pTextInput.text(), int(traceInput.text()), progressBar))
     botLayout = QVBoxLayout()
     botLayout.addWidget(saveWidget)
     botLayout.addWidget(progressBar)
@@ -123,19 +129,126 @@ def populateSettings(settingsBox):
     # TODO populate combo box with text files in this dir
     pass
 
-def encryptFunc(encButton, comPort, keySend, textSend):
+def setupScope(encButton, setupButton, appAlert):
+    setupButton.setEnabled(False)
+    try:
+        resourceManager = pyvisa.ResourceManager()
+        scope = resourceManager.open_resource("USB0::0xF4ED::0xEE3A::SDS1EDED3R6607::INSTR")
+        print("Recalling...")
+        scope.write("*RCL 1")
+        for i in range(7):
+            print("Recalling: {}".format(i))
+            time.sleep(1)
+        print("Setup")
+        scope.write("WFSU SP,0,NP,0,FP,0")
+        scope.close()
+        encButton.setEnabled(True)
+    except:
+        warningAlert("Scope Failure", "Failed to Connect to Scope")
+    finally:
+        setupButton.setEnabled(True)
+
+def randomPT():
+    rand = random.Random()
+    hexString = "%016x" % rand.randrange(16**16)
+    hexArray = []
+    i = 0
+    while i < len(hexString):
+        hexArray.append(hexString[i:i+2])
+        i += 2
+    return hexArray
+
+def warningAlert(title, message):
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Warning)
+    msg.setText(message)
+    msg.setWindowTitle(title)
+    msg.setStandardButtons(QMessageBox.Ok)
+    msg.exec_()
+
+def encryptController(encButton, comPort, key, plaintext, numTraces, progressBar):
+    if numTraces > 0:
+        if "COM" in comPort:
+            progressBar.setValue(0)
+            complete = 0
+            resourceManager = pyvisa.ResourceManager()
+            scope = resourceManager.open_resource("USB0::0xF4ED::0xEE3A::SDS1EDED3R6607::INSTR")
+            C1VDIV = float(scope.query("C1:VDIV?").split()[-1][:-1])
+            print(C1VDIV)
+            C1OFFSET = float(scope.query("C1:OFST?").split()[-1][:-1])
+            print(C1OFFSET)
+            C2VDIV = float(scope.query("C2:VDIV?").split()[-1][:-1])
+            print(C2VDIV)
+            C2OFFSET = float(scope.query("C2:OFST?").split()[-1][:-1])
+            print(C2OFFSET)
+            for i in range(numTraces):
+                encryptFunc(encButton, comPort, key, "test", "KNOWN", scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET)
+                #encryptFunc(encButton, comPort, key, randomPT(), "RANDOM", scope)
+                complete += 1/numTraces * 100
+                progressBar.setValue(complete)
+            progressBar.setValue(100)
+        else:
+            warningAlert("COM Failure", "No COM port selected")
+    else:
+        warningAlert("Trace  Failure", "Number of traces can't be <= 0")
+
+
+def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET):
     encButton.setEnabled(False)
     # Minimum length of 4: ex.'COM1'
-    if len(comPort) > 4:
-        ser = serial.Serial(comPort, ARDUINO_BAUDRATE)
-        ser.write('encrypt\n'.encode())
-        # Change the flow once key sending is implemented
-        # if False:
-        #     # TODO send key given in the line edit
-        #     ser.write('{0}\n{1}\n'.format(keySend, textSend))
-        test = ser.read_until('\n')
-        print(test)
-        ser.close()
+    print("serial")
+    ser = serial.Serial("COM18", ARDUINO_BAUDRATE)
+    print("done")
+    time.sleep(2)
+    ser.write('encrypt\n'.encode())
+    # Change the flow once key sending is implemented
+    # if False:
+    #     # TODO send key given in the line edit
+    #     ser.write('{0}\n{1}\n'.format(keySend, textSend))
+    print(ser.readline())
+    ser.close()
+
+    ch1Data = []
+    ch2Data = []
+    scope.write("C1:WF? DAT2")
+    ch1Raw = str(scope.read_raw()).split('\\x')[1:]
+    scope.write("C2:WF? DAT2")
+    ch2Raw = str(scope.read_raw()).split('\\x')[1:]
+    print("Got Raw")
+    # print(ch1Raw)
+    for byte in ch1Raw:
+        ch1Data.append(int(byte[:2], 16))
+    # print(ch2Raw)
+    for byte in ch2Raw:
+        ch2Data.append(int(byte[:2], 16))
+    # print(ch2Data)
+    print("Got Bytes")
+    ch1Values = []
+    ch2Values = []
+    for data in ch1Data:
+        if data > 127:
+            codeVal = data - 255
+        else:
+            codeVal = data
+        ch1Values.append(codeVal * (C1VDIV / 25) - C1OFFSET)
+
+    for data in ch2Data:
+        if data > 127:
+            codeVal = data - 255
+        else:
+            codeVal = data
+        ch2Values.append(codeVal * (C2VDIV / 25) - C2OFFSET)
+    print("Got Voltages")
+    chMath = []
+    for i in range(min(len(ch1Values), len(ch2Values))):
+        chMath.append(ch1Values[i] - ch2Values[i])
+    print("Got Math")
+    filename = 'Traces/{}/{}_{}.csv'.format(tag, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), textSend)
+    with open(filename, 'w+', newline='') as csvfile:
+        csvWriter = csv.writer(csvfile)
+        for voltage in chMath:
+            csvWriter.writerow(['{0:.4f}'.format(voltage)])
+    print("Made CSV")
     encButton.setEnabled(True)
     # argChoices = ['0', '1', '2']
     # args = []

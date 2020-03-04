@@ -5,7 +5,7 @@ from pathlib import Path
 from matplotlib import pyplot as plot
 
 if __name__ == "__main__":
-    traceDir = Path(os.curdir) / 'Traces'
+    traceDir = Path(os.curdir) / 'Traces/KNOWN'
     traces = []
     for f in os.scandir(traceDir):
         traces.append(numpy.loadtxt(f.path).astype('float'))
@@ -59,10 +59,3 @@ if __name__ == "__main__":
     #         count += trace[i]
     #     res = count / 10
     #     print("Averaged value {0}: {1}".format(i, res))
-
-
-
-
-
-
-
