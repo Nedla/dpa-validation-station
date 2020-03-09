@@ -1,5 +1,6 @@
 import serial
 import serial.tools.list_ports
+# noinspection PyUnresolvedReferences
 from PyQt5.QtWidgets import *
 import pyvisa
 import csv
@@ -8,18 +9,18 @@ import time
 from datetime import datetime
 
 ARDUINO_BAUDRATE = 9600
-
+SETTINGS = {"Full": ["1", 300000], "Macro": ["2", 35000], "Medium": ["3", 100000]}
 # Setup the user interface
 def guiSetup():
     app = QApplication([])
     window = QWidget()
 
     pTextLabel = QLabel("Plaintext 16B:")
-    pTextInput = QLineEdit()
-    pTextInput.setPlaceholderText("Space between bytes")
+    pTextInput = QLineEdit("6c53c2c60da89b32d3c6ac09a0db8e80")
+    pTextInput.setPlaceholderText("00112233445566778899aabbccddeeff")
     keyLabel= QLabel("Private Key 16B:")
-    keyInput = QLineEdit()
-    keyInput.setPlaceholderText("Space between bytes")
+    keyInput = QLineEdit("2e77f4c41efdcc294a32c214f93651b")
+    keyInput.setPlaceholderText("00112233445566778899aabbccddeeff")
     comLabel = QLabel("COM Port:")
 
     comInput = QComboBox()
@@ -35,7 +36,7 @@ def guiSetup():
     comInputRefresh.setLayout(comRefreshLayout)
 
     encButton = QPushButton("Encrypt")
-    encButton.setEnabled(False)
+    encButton.setEnabled(True)
     resetButton = QPushButton("Reset")
     resetButton.clicked.connect(lambda: resetFunc(app))
     formLayoutLeft = QFormLayout()
@@ -51,12 +52,15 @@ def guiSetup():
     traceLabel = QLabel("# of Traces")
     traceInput = QLineEdit()
     traceInput.setText("1")
-    numEncrLabel = QLabel("# of Encrypts")
-    numEncrInput = QLineEdit()
+    completedLabel = QLabel("# Completed")
+    completedInput = QLineEdit("0")
+    completedInput.setReadOnly(True)
+
     settingsLabel = QLabel("Settings File")
 
     settingsInput = QComboBox()
-    populateSettings(settingsInput)
+    for setting in SETTINGS.keys():
+        settingsInput.addItem("{}".format(setting))
     settingsRefreshButton = QPushButton("R")
     settingsRefreshButton.setMaximumWidth(20)
     settingsRefreshButton.clicked.connect(lambda: populateSettings(settingsInput))
@@ -70,10 +74,10 @@ def guiSetup():
 
     setupLabel = QLabel("Scope Setup:")
     setupButton = QPushButton("SETUP")
-    setupButton.clicked.connect(lambda: setupScope(encButton, setupButton, app))
+    setupButton.clicked.connect(lambda: setupScope(encButton, setupButton, app, settingsInput.currentText()))
     formLayoutRight = QFormLayout()
     formLayoutRight.addRow(traceLabel, traceInput)
-    formLayoutRight.addRow(numEncrLabel, numEncrInput)
+    formLayoutRight.addRow(completedLabel, completedInput)
     formLayoutRight.addRow(settingsLabel, settingsInputRefresh)
     formLayoutRight.addRow(setupLabel, setupButton)
     formLayoutRight.setContentsMargins(0, 0, 0, 0)
@@ -98,8 +102,9 @@ def guiSetup():
     saveWidget = QWidget()
     saveWidget.setLayout(saveLayout)
     progressBar = QProgressBar()
-    encButton.clicked.connect(lambda: encryptController(encButton, comInput.currentText(), keyInput.text().split(),
-                                                        pTextInput.text(), int(traceInput.text()), progressBar))
+    encButton.clicked.connect(lambda: encryptController(encButton, comInput.currentText(), keyInput.text(),
+                                                        pTextInput.text(), int(traceInput.text()), progressBar,
+                                                        completedInput, settingsInput.currentText()))
     botLayout = QVBoxLayout()
     botLayout.addWidget(saveWidget)
     botLayout.addWidget(progressBar)
@@ -129,13 +134,13 @@ def populateSettings(settingsBox):
     # TODO populate combo box with text files in this dir
     pass
 
-def setupScope(encButton, setupButton, appAlert):
+def setupScope(encButton, setupButton, appAlert, setting):
     setupButton.setEnabled(False)
     try:
         resourceManager = pyvisa.ResourceManager()
         scope = resourceManager.open_resource("USB0::0xF4ED::0xEE3A::SDS1EDED3R6607::INSTR")
         print("Recalling...")
-        scope.write("*RCL 1")
+        scope.write("*RCL {}".format(SETTINGS.get(setting)[0]))
         for i in range(7):
             print("Recalling: {}".format(i))
             time.sleep(1)
@@ -150,13 +155,8 @@ def setupScope(encButton, setupButton, appAlert):
 
 def randomPT():
     rand = random.Random()
-    hexString = "%016x" % rand.randrange(16**16)
-    hexArray = []
-    i = 0
-    while i < len(hexString):
-        hexArray.append(hexString[i:i+2])
-        i += 2
-    return hexArray
+    hexString = "%016x" % rand.randrange(16**32)
+    return hexString
 
 def warningAlert(title, message):
     msg = QMessageBox()
@@ -166,10 +166,11 @@ def warningAlert(title, message):
     msg.setStandardButtons(QMessageBox.Ok)
     msg.exec_()
 
-def encryptController(encButton, comPort, key, plaintext, numTraces, progressBar):
+def encryptController(encButton, comPort, key, plaintext, numTraces, progressBar, progressCounter, setting):
     if numTraces > 0:
         if "COM" in comPort:
             progressBar.setValue(0)
+            progressCounter.setText("0")
             complete = 0
             resourceManager = pyvisa.ResourceManager()
             scope = resourceManager.open_resource("USB0::0xF4ED::0xEE3A::SDS1EDED3R6607::INSTR")
@@ -182,10 +183,10 @@ def encryptController(encButton, comPort, key, plaintext, numTraces, progressBar
             C2OFFSET = float(scope.query("C2:OFST?").split()[-1][:-1])
             print(C2OFFSET)
             for i in range(numTraces):
-                encryptFunc(encButton, comPort, key, "test", "KNOWN", scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET)
-                #encryptFunc(encButton, comPort, key, randomPT(), "RANDOM", scope)
+                encryptFunc(encButton, comPort, key, plaintext, "KNOWN", scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET, setting)
+                encryptFunc(encButton, comPort, key, randomPT(), "RANDOM", scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET, setting)
                 complete += 1/numTraces * 100
-                progressBar.setValue(complete)
+                progressCounter.setText("{}".format(int(progressCounter.text())+1))
             progressBar.setValue(100)
         else:
             warningAlert("COM Failure", "No COM port selected")
@@ -193,19 +194,27 @@ def encryptController(encButton, comPort, key, plaintext, numTraces, progressBar
         warningAlert("Trace  Failure", "Number of traces can't be <= 0")
 
 
-def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET):
+def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFFSET, C2VDIV, C2OFFSET, setting):
     encButton.setEnabled(False)
     # Minimum length of 4: ex.'COM1'
     print("serial")
-    ser = serial.Serial("COM18", ARDUINO_BAUDRATE)
+    print(comPort)
+    ser = serial.Serial(comPort, ARDUINO_BAUDRATE)
     print("done")
     time.sleep(2)
     ser.write('encrypt\n'.encode())
-    # Change the flow once key sending is implemented
-    # if False:
-    #     # TODO send key given in the line edit
-    #     ser.write('{0}\n{1}\n'.format(keySend, textSend))
-    print(ser.readline())
+    print("encrypt")
+    ser.write('{0}\n{1}\n'.format(keySend, textSend).encode())
+    print(keySend)
+    print(textSend)
+    serOut = ser.readline()
+    bytesOut = ''
+    print(serOut)
+    for byte in serOut.decode().split():
+       bytesOut += '{} '.format(hex(int(byte)))
+    print("hexed")
+    bytesOut.strip()
+    print("stripped")
     ser.close()
 
     ch1Data = []
@@ -246,8 +255,12 @@ def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFF
     filename = 'Traces/{}/{}_{}.csv'.format(tag, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), textSend)
     with open(filename, 'w+', newline='') as csvfile:
         csvWriter = csv.writer(csvfile)
-        for voltage in chMath:
-            csvWriter.writerow(['{0:.4f}'.format(voltage)])
+        csvWriter.writerow(["# KEY: {}".format(keySend)])
+        csvWriter.writerow(["# {} PLAINTEXT: {}".format(tag, textSend)])
+        csvWriter.writerow(["# OUTPUT: {}".format(bytesOut)])
+        csvWriter.writerow(["# Date: {}".format(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))])
+        for voltage in range(SETTINGS.get(setting)[1]):
+            csvWriter.writerow(['{0:.4f}'.format(chMath[voltage])])
     print("Made CSV")
     encButton.setEnabled(True)
     # argChoices = ['0', '1', '2']

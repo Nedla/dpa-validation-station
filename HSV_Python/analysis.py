@@ -6,20 +6,29 @@ from matplotlib import pyplot as plot
 
 if __name__ == "__main__":
     traceDir = Path(os.curdir) / 'Traces/KNOWN'
-    traces = []
+    knownCSV = []
+    count = 0
     for f in os.scandir(traceDir):
-        traces.append(numpy.loadtxt(f.path).astype('float'))
+        print(count)
+        knownCSV.append(numpy.loadtxt(f.path).astype('float'))
+        count += 1
+        if count >= 7:
+            break
 
-    zeroToFive = numpy.array(traces[0:5])
-    fiveToNine = numpy.array(traces[5:])
+    traceDir = Path(os.curdir) / 'Traces/RANDOM'
+    randomCSV = []
+    count = 0
+    for f in os.scandir(traceDir):
+        print(count)
+        randomCSV.append(numpy.loadtxt(f.path).astype('float'))
+        count += 1
+        if count >= 7:
+            break
 
-    # plot.figure(1)
-    # plot.title('Power Trace')
-    # plot.xlabel('Time')
-    # plot.ylabel('Power')
-    # for x in traces:
-    #     plot.plot(x)
-    # plot.show()
+    zeroToFive = numpy.array(knownCSV)
+    fiveToNine = numpy.array(randomCSV)
+
+
 
     mean1 = numpy.mean(zeroToFive, axis=0)
     mean2 = numpy.mean(fiveToNine, axis=0)
@@ -27,7 +36,7 @@ if __name__ == "__main__":
     stdDev2 = numpy.std(fiveToNine, axis=0)
 
     tResult = []
-    for i in range(2820):
+    for i in range(100000):
         meanX = mean1[i]
         meanY = mean2[i]
         stdDevX = stdDev1[i]
@@ -40,18 +49,33 @@ if __name__ == "__main__":
         t = top/bot
         tResult.append(t)
 
-    plot.figure(2)
-    plot.title('Average Trace')
+    plot.figure(1)
+    plot.title('Known Trace')
     plot.xlabel('Time')
     plot.ylabel('Power')
-    plot.plot(mean1)
-    plot.plot(mean2)
-    # plot.plot(tResult)
+    #for p in zeroToFive:
+    plot.plot(zeroToFive[0])
     plot.show()
 
-    print(tResult[2819])
-    print(mean1[2819])
-    print(mean2[2819])
+    plot.figure(2)
+    plot.title('Random Trace')
+    plot.xlabel('Time')
+    plot.ylabel('Power')
+    for p in fiveToNine:
+        plot.plot(p)
+    plot.show()
+
+    plot.figure(3)
+    plot.title('T-Test Trace')
+    plot.xlabel('Trace #')
+    plot.ylabel('Similarity')
+    plot.plot(tResult)
+    plot.show()
+
+    #
+    # print(tResult[2819])
+    # print(mean1[2819])
+    # print(mean2[2819])
 
     # for i in range(3):
     #     count = 0

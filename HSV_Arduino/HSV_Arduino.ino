@@ -1,10 +1,4 @@
-String serialReadByte; // Byte read from serial
 String command;
-String plainText;
-int secretKey;
-long startTime;
-long midTime;
-long endTime;
 
 
 
@@ -224,6 +218,24 @@ void RijndaelEncrypt( u8 input[16], u8 output[16] ) {
   return;
 } /* end of function RijndaelEncrypt */
 
+static void hex2bin(u8 *out, const char *in, size_t *size)
+{
+    size_t sz = 0;
+    while (*in) {
+        while (*in == ' ') in++;  // skip spaces
+        if (!*in) break;
+        uint8_t c = *in>='a' ? *in-'a'+10 : *in>='A' ? *in-'A'+10 : *in-'0';
+        in++;
+        c <<= 4;
+        if (!*in) break;
+        c |= *in>='a' ? *in-'a'+10 : *in>='A' ? *in-'A'+10 : *in-'0';
+        in++;
+        *out++ = c;
+        sz++;
+    }
+    *size = sz;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600); // Starting serial port at 9600bps
@@ -232,49 +244,43 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (Serial.available() > 0){
+  if (Serial.available()){
     command = Serial.readStringUntil('\n'); // Reads from serial until end of line
-    
     if(command.equals("encrypt")){
+      u8 key[16];
+      u8 in[16];
       u8 out[16];
-
-      // TODO encrypt using the given key and plain text
-//      bool needKey = true;
-//      bool needPT = true;
-//      bool donePrompt = false;
-//      String keyArg;
-//      String ptArg;
-//      while (needKey || needPT){
-//        if(Serial.available() > 0 && needKey){
-//          keyArg = Serial.readStringUntil('\n');
-//          needKey = false;
-//        }
-//        else if(Serial.available() > 0 && needPT){
-//          ptArg = Serial.readStringUntil('\n');
-//          needPT = false;
-//        }
-//      }
-      u8 key[16] = {0x00  ,0x01  ,0x02  ,0x03  ,0x04  ,0x05  ,0x06  ,0x07  ,0x08  ,0x09  ,0x0a  ,0x0b  ,0x0c  ,0x0d  ,0x0e  ,0x0f};
-      u8 in[16] = {0x00  ,0x01  ,0x02  ,0x03  ,0x04  ,0x05  ,0x06  ,0x07  ,0x08  ,0x09  ,0x0a  ,0x0b  ,0x0c  ,0x0d  ,0x0e  ,0x0f};
-
-//      switch(atoi(keyArg.c_str())){
-//        case 0:
-//        key = key0;
-//        case 1:
-//        key = key1;
-//        case 2:
-//        key = key2;
-//      }
-//
-//      switch(atoi(ptArg.c_str())){
-//        case 0:
-//        in = in0;
-//        case 1:
-//        in = in1;
-//        case 2:
-//        in = in2;
-//      }
-
+     // TODO encrypt using the given key and plain text
+      bool gotKey = false;
+      bool gotPT = false;
+      static char buffer[256];
+      static size_t length = 0;
+      while(!gotKey || !gotPT){
+        if (Serial.available()) {
+            char c = Serial.read();
+            // On newline, process the received data.
+            if (c == '\n') {
+                // Properly terminate the string.
+                buffer[length] = '\0';
+                // Convert the hex data to a byte array.
+                size_t byte_count = length/2;
+                if(!gotKey){
+                  hex2bin(key, buffer, &byte_count);
+                  gotKey = true;
+                }
+                else if(!gotPT){
+                  hex2bin(in, buffer, &byte_count);
+                  gotPT = true;
+                }
+                // Reset the buffer for next line.
+                length = 0;
+            }
+            // Otherwise buffer the incoming byte.
+            else if (length < sizeof buffer - 1) {
+                buffer[length++] = c;
+            }
+        }
+      }
       
       //for(int x = 0;x < 10000;x++){
         //startTime = micros();
@@ -291,29 +297,6 @@ void loop() {
         Serial.print(" ");
       }
       Serial.println();
-//      
-//      Serial.print("Start Time: ");
-//      Serial.print(startTime);
-//      Serial.println(" Micro Seconds");
-//
-//      Serial.print("Middle Time: ");
-//      Serial.print(midTime);
-//      Serial.println(" Micro Seconds");
-//      
-//      Serial.print("End Time: ");
-//      Serial.print(endTime);
-//      Serial.println(" Micro Seconds");
-//
-//      long totalTime = endTime - startTime;
-//      Serial.print("Total Encryption Time: ");
-//      Serial.print(totalTime);
-//      Serial.println(" Micro Seconds");
-    }
-    else if(command.equals("command2")){
-      Serial.println("Command2");
-    }
-    else if(command.equals("command3")){
-      Serial.println("Command1");
     }
     else{
       Serial.println("Command Not Recognized");
