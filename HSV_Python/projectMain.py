@@ -19,7 +19,7 @@ def guiSetup():
     pTextInput = QLineEdit("6c53c2c60da89b32d3c6ac09a0db8e80")
     pTextInput.setPlaceholderText("00112233445566778899aabbccddeeff")
     keyLabel= QLabel("Private Key 16B:")
-    keyInput = QLineEdit("2e77f4c41efdcc294a32c214f93651b")
+    keyInput = QLineEdit("2e77f4c41efdcc294a32c214f93651b0")
     keyInput.setPlaceholderText("00112233445566778899aabbccddeeff")
     comLabel = QLabel("COM Port:")
 
@@ -252,7 +252,7 @@ def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFF
     for i in range(min(len(ch1Values), len(ch2Values))):
         chMath.append(ch1Values[i] - ch2Values[i])
     print("Got Math")
-    filename = 'Traces/{}/{}_{}.csv'.format(tag, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), textSend)
+    filename = 'Traces/{}/{}_{}_{}.csv'.format(tag, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), textSend, bytesOut)
     with open(filename, 'w+', newline='') as csvfile:
         csvWriter = csv.writer(csvfile)
         csvWriter.writerow(["# KEY: {}".format(keySend)])
@@ -263,17 +263,6 @@ def encryptFunc(encButton, comPort, keySend, textSend, tag, scope, C1VDIV, C1OFF
             csvWriter.writerow(['{0:.4f}'.format(chMath[voltage])])
     print("Made CSV")
     encButton.setEnabled(True)
-    # argChoices = ['0', '1', '2']
-    # args = []
-    # args[0] = input("Key choice (0, 1, 2): ") + '\n'
-    # while args[0] not in argChoices:
-    #     args[0] = input("Choose a key (0, 1, 2): ") + '\n'
-    #
-    # args[1] = input("Plaintext choice (0, 1, 2): ") + '\n'
-    # while args[1] not in argChoices:
-    #     args[1] = input("Choose a plaintext (0, 1, 2): ") + '\n'
-    # for arg in args:
-    #     ser.write(arg)
 
 def resetFunc(app):
     for widget in app.allWidgets():
@@ -283,12 +272,3 @@ def resetFunc(app):
 
 if __name__ == "__main__":
     guiSetup()
-    # comList = listComs()
-    # ser = chooseCom(comList)
-    # if ser is not None:
-    #     serSending = True
-    #     while serSending:
-    #         serialCommand = input("Enter a Command:").lower()
-    #         if checkCommand(serialCommand):
-    #             ser.write(serialCommand + '\n')
-    #             SERIAL_COMMANDS[serialCommand]()
